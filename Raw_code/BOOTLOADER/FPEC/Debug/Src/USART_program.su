@@ -1,0 +1,6 @@
+USART_program.c:17:6:MUSART_voidInit	8	static
+USART_program.c:38:13:MUSART_voidSetBaudRate	40	static
+USART_program.c:52:6:MUSART_voidTransmittChar	16	static
+USART_program.c:58:4:MUSART_u8ReceiveChar	16	static
+USART_program.c:64:6:MUSART_SetINTStatus	16	static
+USART_program.c:70:6:MUSART_voidTransmittString	16	static
