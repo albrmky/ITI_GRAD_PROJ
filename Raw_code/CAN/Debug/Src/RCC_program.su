@@ -1,0 +1,7 @@
+RCC_program.c:20:6:MRCC_voidInit	8	static
+RCC_program.c:70:4:MRCC_u8CheckClockSource	32	static
+RCC_program.c:90:6:MRCC_voidSetClockSource	16	static
+RCC_program.c:106:6:MRCC_voidEnableClockSource	16	static
+RCC_program.c:114:6:MRCC_voidSetBusClocks	16	static
+RCC_program.c:125:6:MRCC_voidSetPeripheralClock	16	static
+RCC_program.c:145:6:MRCC_voidConfigurePLL	16	static
