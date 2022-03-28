@@ -92,6 +92,12 @@ typedef enum
 	CAN_REMOTE_FRAME
 } CAN_FRAME_t;
 
+typedef struct
+{
+	char Buffer[50];
+	u8 counter;
+} CAN_STRING_Buffer_t;
+
 void CAN_voidFilterConfiguration(u8 Filter_Bank_number,
 									FILTER_MODE_t Filter_Mode,
 									FILTER_SCALE_REGISTER_t Filter_Scale,
@@ -114,5 +120,10 @@ void CAN_TransmitMailBox(u8 MailBoxNum, u8 Data_length, u8 *Data,
 							);
 void CAN_voidReceiveMailBox(u8 FIFO_num, RX_Struct_t *RX_Header, u8 *Rx_Data);
 u32 CAN_u32GetProperFilterValues(u16 std_id_part, u32 extended_id_part, u8 IDE_value, u8 RTR_value);
+
+//////////////////////////////test///////////////////////////
+u8 CAN_u8ReceiveStringTest(u8 FIFO_num, RX_Struct_t *RX_Header, CAN_STRING_Buffer_t *Rx_Buffer, char Delimiter);
+
+void CAN_TransmitStringTest(u8 MailBoxNum, char *Data, u32 identifier);
 
 #endif /* MCAL_CAN_CAN_INTERFACE_H_ */
