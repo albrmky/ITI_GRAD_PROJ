@@ -1,0 +1,8 @@
+ESP8266_PROG.c:16:6:MUSART_CallBack	16	static
+ESP8266_PROG.c:24:6:ESP8266_VidInit	8	static
+ESP8266_PROG.c:47:6:ESP8266_VidConnectToWiFi	16	static
+ESP8266_PROG.c:61:6:ESP8266_VidConnectToSrvTcp	16	static
+ESP8266_PROG.c:74:6:ESP8266_VidSendHttpReq	24	static
+ESP8266_PROG.c:94:6:ESP8266_u8ReceiveHttpReq	16	static
+ESP8266_PROG.c:118:5:ESP8266_PTRu8SocketSendData	16	static
+ESP8266_PROG.c:135:6:ESP8266_VidClearBuffer	16	static
