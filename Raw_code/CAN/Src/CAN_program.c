@@ -266,6 +266,107 @@ void CAN_voidReceiveMailBox(u8 FIFO_num, RX_Struct_t *RX_Header, u8 *Rx_Data)
 	u32 local_extarcted_extended_id = (CAN1->RX_MAILBOX[FIFO_num].CAN_RIR >> 3)
 			& 0x3FFFF;	// needs only 18-bit
 
+	if (RX_Header->Identifier_type) //extended
+	{
+		RX_Header->Identifier = (local_extarcted_std_id << 18)
+				| local_extarcted_extended_id;
+	}
+	else // standard
+	{
+
+		RX_Header->Identifier = local_extarcted_std_id;
+	}
+
+	// index of the filter data passed through
+	RX_Header->Filter_Index = ((CAN1->RX_MAILBOX[FIFO_num].CAN_RDTR) >> 8)
+			& 0xFF;
+
+	// get the frame type
+	RX_Header->Frame_type = GET_BIT(CAN1->RX_MAILBOX[FIFO_num].CAN_RIR, 1);
+
+	u8 *data_start_add = (u8*) &(CAN1->RX_MAILBOX[FIFO_num].CAN_RDLR);
+	for (int i = 0; i < RX_Header->Data_length; i++)
+	{
+		Rx_Data[i] = *data_start_add++;
+	}
+
+	if (FIFO_num)
+	{
+		SET_BIT(CAN1->CAN_RF1R, 5);
+	}
+	else
+	{
+		SET_BIT(CAN1->CAN_RF0R, 5);
+	}
+
+}
+
+/****************************************************************
+ * Instead of including String.h library
+ *****************************************************************/
+static u8 StringLen(char *str)
+{
+	u8 counter = 0;
+	while (*str++ != '\0')
+	{
+		counter++;
+	}
+	return counter;
+}
+
+void CAN_TransmitStringTest(u8 MailBoxNum, char *Data, u32 identifier)
+{
+	//							register content
+//	-------------------------------------------------------------------------------
+	// byte 1              byte 2              byte 3          byte 4
+	// stdid[10:3]  stdid[2:0] extid[17:13]  extid[12:5]   extid[4:0] IDE RTR  TXRQ
+//  -------------------------------------------------------------------------------
+
+	u8 temp_index = 0;
+	u8 Strlength = StringLen(Data);
+	while (temp_index < Strlength)
+	{
+		// wait for the required transmitting mail box to be empty
+		while ( GET_BIT(CAN1->CAN_TSR,(26+MailBoxNum) ) == 0);
+
+		// must use the identifier format function to avoid any errors
+		CAN1->TX_MAILBOX[MailBoxNum].CAN_TIR = identifier;
+
+		// length of the data to be sent
+		INS_FIELD(CAN1->TX_MAILBOX[MailBoxNum].CAN_TDTR, 0xF, 0, 8);
+
+		// lower 4 bytes of data
+		CAN1->TX_MAILBOX[MailBoxNum].CAN_TDLR = Data[temp_index + 3] << 24
+				| Data[temp_index + 2] << 16
+				| Data[temp_index + 1] << 8 | Data[temp_index + 0];
+
+		// higher 4 bytes of data
+		CAN1->TX_MAILBOX[MailBoxNum].CAN_TDHR = Data[temp_index + 7] << 24
+				| Data[temp_index + 6] << 16
+				| Data[temp_index + 5] << 8 | Data[temp_index + 4];
+
+		// request transmitting
+		SET_BIT(CAN1->TX_MAILBOX[MailBoxNum].CAN_TIR, 0);
+		temp_index += 8;
+	}
+}
+
+u8 CAN_u8ReceiveStringTest(u8 FIFO_num, RX_Struct_t *RX_Header, CAN_STRING_Buffer_t *Rx_Buffer, char Delimiter)
+{
+
+	u8 DoesDelimiterCame = 0;
+
+	// get the length of the incoming data
+	RX_Header->Data_length = CAN1->RX_MAILBOX[FIFO_num].CAN_RDTR & 0xF;
+
+	// get the identifier type
+	RX_Header->Identifier_type = GET_BIT(CAN1->RX_MAILBOX[FIFO_num].CAN_RIR, 2);
+
+	u32 local_extarcted_std_id = (CAN1->RX_MAILBOX[FIFO_num].CAN_RIR >> 21)
+			& 0x7FF;	// needs only 11-bit
+	u32 local_extarcted_extended_id = (CAN1->RX_MAILBOX[FIFO_num].CAN_RIR >> 3)
+			& 0x3FFFF;	// needs only 18-bit
+
 	if (RX_Header->Identifier_type) //standard
 	{
 		RX_Header->Identifier = local_extarcted_std_id;
@@ -279,18 +380,29 @@ void CAN_voidReceiveMailBox(u8 FIFO_num, RX_Struct_t *RX_Header, u8 *Rx_Data)
 	// index of the filter data passed through
 	RX_Header->Filter_Index = (CAN1->RX_MAILBOX[FIFO_num].CAN_RDTR) >> 8 & 0xFF;
 
-	// get the frame type
+	// get the frame type remote or data
 	RX_Header->Frame_type = GET_BIT(CAN1->RX_MAILBOX[FIFO_num].CAN_RIR, 1);
 
-	Rx_Data[0] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDLR >> 0;
-	Rx_Data[1] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDLR >> 8;
-	Rx_Data[2] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDLR >> 16;
-	Rx_Data[3] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDLR >> 24;
+	u8 *data_start_add = (u8*) &(CAN1->RX_MAILBOX[FIFO_num].CAN_RDLR);
+	u8 dumb;
 
-	Rx_Data[4] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDHR >> 0;
-	Rx_Data[5] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDHR >> 8;
-	Rx_Data[6] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDHR >> 16;
-	Rx_Data[7] = CAN1->RX_MAILBOX[FIFO_num].CAN_RDHR >> 24;
+	// read data and save it in buffer until the delimiter is received
+	for (int i = 0; i < RX_Header->Data_length; i++)
+	{
+
+		dumb = *data_start_add++;
+		Rx_Buffer->Buffer[Rx_Buffer->counter++] = dumb;
+
+		if (dumb == Delimiter)
+		{
+
+			DoesDelimiterCame = 1;
+			break;
+		}
+	}
+
+	// when the delimiter is received
+	// return 1 to be checked on
 
 	if (FIFO_num)
 	{
@@ -300,6 +412,8 @@ void CAN_voidReceiveMailBox(u8 FIFO_num, RX_Struct_t *RX_Header, u8 *Rx_Data)
 	{
 		SET_BIT(CAN1->CAN_RF0R, 5);
 	}
+
+	return DoesDelimiterCame;
 
 }
 

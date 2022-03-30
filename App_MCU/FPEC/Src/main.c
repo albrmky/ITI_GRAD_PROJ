@@ -9,9 +9,15 @@
 #include "../Inc/MCAL/USART/USART_interface.h"
 #include "../Inc/MCAL/CAN/CAN_interface.h"
 #include "../Inc/Parser.h"
+#include <String.h>
+
+#define SCB_AIRCR *((volatile u32*)0xE000ED0C)
 
 typedef void (*Function_t)(void); // pointer to function who take void and return nothing
 Function_t addr_to_call = 0; // an instance of that data type
+
+CAN_STRING_Buffer_t Rx_Buffer;
+RX_Struct_t Rx_Header;
 
 // flags for parsing the record
 u8 Start_Parsing_Flag; // wait for '\n' -> parse -> wait again
@@ -31,10 +37,10 @@ RX_Struct_t Inquire_Header;
 u8 Inquire_Counter; // counter for inquiring buffer
 
 /* change those acccording to the code */
-u8 FirstBankStartPage = 10;
-u8 FirstBankSize = 24;
-u8 SecondBankStartPage = 34;
-u8 SecondBankSize = 30;
+u8 FirstBankStartPage = 14;
+u8 FirstBankSize = 25;
+u8 SecondBankStartPage = 39;
+u8 SecondBankSize = 25;
 
 /* store the storage */
 char Current_version[10];
@@ -59,58 +65,30 @@ void func(void)
 	addr_to_call();
 }
 
-void USB_LP_CAN_RX0_IRQHandler(void) // for inquiry
-{
-	CAN_voidReceiveMailBox(0, &Inquire_Header, Inquire_Temp_Buffer);
-	u8 temp;
-	for (int i = 0; i < Inquire_Header.Data_length; i++)
-	{
-		temp = Inquire_Temp_Buffer[i];
-		Inquire_Buffer[Inquire_Counter++] = temp;
-	}
-	if (temp == '\n')
-	{
-		if (Inquire_Buffer[0] == 'G' && Inquire_Buffer[4] == 'V') // Get Version?\n
-		{
-			//send current version by CAN ->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>to be continued make sure \n is sent
-		}
-		else if (Inquire_Buffer[0] == 'G' && Inquire_Buffer[4] == 'A') // Get Active Bankn\n
-		{
-			//send current bank by CAN ->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>to be continued 0x11 send 1 if 0x22 send 2 followed by \n
-		}
-		Inquire_Counter = 0;
-	}
-}
-
 void CAN_RX1_IRQHandler(void) // for record
 {
 	// read upcoming data and release the FIFO
-	CAN_voidReceiveMailBox(1, &Recv_Header, Recv_Temp_Buffer);
+	u8 status;
+	status = CAN_u8ReceiveStringTest(1, &Rx_Header, &Rx_Buffer, '\n');
 
-	u8 temp;
-
-	//move the upcoming data to the main buffer 
-	for (int i = 0; i < Recv_Header.Data_length; i++)
-	{
-		temp = Recv_Temp_Buffer[i];
-		Recv_Buffer[Recv_Counter++] = temp;
-	}
-	if (temp == '\n') // if \n is received start to take action 
+	if (status)
 	{
 		Start_Parsing_Flag = 1;
-		Recv_Counter = 0;
+		asm("NOP");
+		Rx_Buffer.counter = 0;
 	}
 }
 
 void USART1_IRQHandler(void)
 {
 	u8 data = MUSART_u8ReceiveChar();
-	Recv_Buffer[Recv_Counter++] = data;
-
+	//Recv_Buffer[Recv_Counter++] = data;
+	Rx_Buffer.Buffer[Rx_Buffer.counter++] = data;
 	if (data == '\n')
 	{
 		Start_Parsing_Flag = 1;
 		Recv_Counter = 0;
+		Rx_Buffer.counter = 0;
 	}
 }
 
@@ -125,6 +103,7 @@ int main(void)
 	MRCC_voidSetPeripheralClock(RCC_GPIOA, RCC_STATUS_ON);
 	MRCC_voidSetPeripheralClock(RCC_FLITF, RCC_STATUS_ON);
 	MRCC_voidSetPeripheralClock(RCC_USART1, RCC_STATUS_ON);
+	MRCC_voidSetPeripheralClock(RCC_CAN, RCC_STATUS_ON);
 
 	/************************************************* GPIO configuration ***************************************/
 	MGPIO_voidSetPinDirection(GPIO_PORTC, 13, GPIO_MODE_OUTPUT_10_MHZ,
@@ -149,22 +128,20 @@ int main(void)
 	// the mask value or the second identifier value depending on the mode
 	u32 ID2_MASK = CAN_u32GetProperFilterValues(0x1F0, 0xFFF, 0, 0);
 
-	u32 ID_tx = CAN_u32GetProperFilterValues(0x105, 0x525, 0, 0); // the identifier which this ECU will use to send data to WIFI ECU
+	u32 ID_tx = CAN_u32GetProperFilterValues(0x100, 0x525, 0, 0); // the identifier which this ECU will use to send data to WIFI ECU
 
-	CAN_voidFilterConfiguration(10, CAN_FILTER_MODE_IDENTIFIER_MASK_MODE,
-			CAN_FILTER_SCALE_SINGLE_32_BIT, CAN_FILTER_ASSIGNMENT_FIFO_0,
+	CAN_voidFilterConfiguration(10, CAN_FILTER_MODE_IDENTIFIER_LIST_MODE,
+			CAN_FILTER_SCALE_SINGLE_32_BIT, CAN_FILTER_ASSIGNMENT_FIFO_1,
 			ID, ID2_MASK, CAN_STATUS_ENABLE);
 
-	CAN_voidInterruptStatus(CAN_EVENT_FIFO_0_PENDING, CAN_STATUS_ENABLE);
 	CAN_voidInterruptStatus(CAN_EVENT_FIFO_1_PENDING, CAN_STATUS_ENABLE);
 
 	CAN_voidInit();
 
-	// filters to be configured one for inquiry buffer and another for data buffer  ->>>>>>>>>>>>>>> to be continued 
+	// filters to be configured one for inquiry buffer and another for data buffer  ->>>>>>>>>>>>>>> to be continued
 
 	/************************************************* NVIC configuration ***************************************/
 	MNVIC_voidEnableInterrupt(NVIC_USART1); // not needed when activating the CAN
-	MNVIC_voidEnableInterrupt(NVIC_USB_LP_CAN_RX0);
 	MNVIC_voidEnableInterrupt(NVIC_CAN_RX1);
 
 	/************************************************* FLASH configuration ***************************************/
@@ -184,13 +161,27 @@ int main(void)
 
 	// not needed when activating the can
 	MUSART_voidInit();
-	MUSART_SetINTStatus(USART_READ_DATA_REG_NOT_EMPTY, USART_ENABLE);
+	//MUSART_SetINTStatus(USART_READ_DATA_REG_NOT_EMPTY, USART_ENABLE);
 
 	/************************************************* SYSTICK configuration ***************************************/
-	MSYSTICK_voidInit();
-	MSYSTICK_voidSetIntervalSingle(6000000, func);
 
-	u8 status = 0;
+	for (int i = 0; i < 5; i++)
+	{
+		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_HIGH);
+		for (int i = 0; i < 300000; i++);
+
+		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_LOW);
+		for (int i = 0; i < 300000; i++);
+	}
+	for (int i = 0; i < 1000000; i++);
+
+	CAN_TransmitStringTest(0, "Get Version\n", ID_tx);
+
+	MSYSTICK_voidInit();
+	MSYSTICK_voidSetIntervalSingle(12000000, func);
+
+	u8 status;
+	status = 0;
 	while (1)
 	{
 
@@ -198,60 +189,86 @@ int main(void)
 		// this happens when a record which is terminated with \n is received
 		while (Start_Parsing_Flag == 0);
 
-		// if first record erase BANKx
-		if (First_Record_Flag == 0)
+		if (Rx_Buffer.Buffer[0] == ':')
 		{
-			// read option byte to know which is the current active bank
-			// 0x11 bank 1
-			// 0x22 bank 2
-			u8 active_bank = FLASH_u8ReadDataOptionByte(FLASH_OPT_BYTE_DATA_1);
 
-			if (active_bank == 0x11)// if bank 1  is the active bank erase bank 2
+			// if first record erase BANKx
+			if (First_Record_Flag == 0)
 			{
-				for (u8 i = SecondBankStartPage;
-						i < SecondBankStartPage + SecondBankSize; i++)
+				// read option byte to know which is the current active bank
+				// 0x11 bank 1
+				// 0x22 bank 2
+				u8 active_bank = FLASH_u8ReadDataOptionByte(
+						FLASH_OPT_BYTE_DATA_1);
+
+				if (active_bank == 0x11)// if bank 1  is the active bank erase bank 2
 				{
-					FLASH_voidPageErase(i);
+					for (u8 i = SecondBankStartPage;
+							i < SecondBankStartPage + SecondBankSize; i++)
+					{
+						FLASH_voidPageErase(i);
+					}
 				}
+				else if (active_bank == 0x22) // if bank 2  is the active bank erase bank 1
+				{
+					for (u8 i = FirstBankStartPage;
+							i < FirstBankStartPage + FirstBankSize; i++)
+					{
+						FLASH_voidPageErase(i);
+					}
+				}
+				First_Record_Flag = 1; // no erasing anymore
 			}
-			else if (active_bank == 0x22) // if bank 2  is the active bank erase bank 1
+
+			// check record by using the checksum byte
+			status = Check_Record(Recv_Buffer);
+
+			// if record is valid
+			// start parsing
+			if (status == 0)
 			{
-				for (u8 i = FirstBankStartPage;
-						i < FirstBankStartPage + FirstBankSize; i++)
-				{
-					FLASH_voidPageErase(i);
-				}
+				Parse_Record(Recv_Buffer);
 			}
-			First_Record_Flag = 1; // no erasing anymore
+
+			// send ok\n flashing the record
+			// need to be substituted with CAN send ->>>>>>>>>>>>>>>>>>>>>> to be continued
+			MUSART_voidTransmittString("OK\n");
+
+			// if the last record is received no need to wait 6 seconds
+			if (finish_flag)
+			{
+				MSYSTICK_voidPreload(SYSTICK_PRELOAD_IMMEDIATE, 100);
+			}
+			else
+			{
+				MSYSTICK_voidSetIntervalSingle(6000000, func);
+			}
+
 		}
-
-		// check record by using the checksum byte
-		status = Check_Record(Recv_Buffer);
-
-		// if record is valid
-		// start parsing
-		if (status == 0)
+		else if (0 == strcmp("Get Version\n", Rx_Buffer.Buffer))
 		{
-			Parse_Record(Recv_Buffer);
+			CAN_TransmitStringTest(0, Current_version, ID_tx);
 		}
-
-		// send ok\n flashing the record
-		// need to be substituted with CAN send ->>>>>>>>>>>>>>>>>>>>>> to be continued
-		MUSART_voidTransmittString("OK\n");
+		else if (0 == strcmp("Get Active Bank\n", Rx_Buffer.Buffer))
+		{
+			u8 dumb = FLASH_u8ReadDataOptionByte(FLASH_OPT_BYTE_DATA_1);
+			if (dumb == 0x11)
+			{
+				//CAN_TransmitStringTest(0, "0x11", ID_tx);
+			}
+			else if (dumb == 0x22)
+			{
+				//CAN_TransmitStringTest(0, "0x22", ID_tx);
+			}
+		}
+		else if (0 == strcmp("Restart\n", Rx_Buffer.Buffer))
+		{
+			SCB_AIRCR = 0x05FA0004; // request a system reset
+		}
 
 		// clear the flag to wait for the next one
 		Start_Parsing_Flag = 0;
 
-		// if the last record is received no need to wait 6 seconds
-		if (finish_flag)
-		{
-			MSYSTICK_voidPreload(SYSTICK_PRELOAD_IMMEDIATE, 100);
-		}
-		else
-		{
-			MSYSTICK_voidSetIntervalSingle(6000000, func);
-		}
-
-	}
+	}			//while(1)
 	return 1;
-}
+}			// main
