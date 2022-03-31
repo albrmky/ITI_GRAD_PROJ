@@ -324,7 +324,9 @@ void FLASH_Write_CurrentVersion(u32 address, char *data)
 	// choose the next operation to be page erase
 	SET_BIT(FPEC->FLASH_CR, PAGE_PROGRAM);
 
-	for (int i = 0; i < strlength(data); i++)
+	int i;
+
+	for (i = 0; i < strlength(data); i++)
 	{
 		// Flash must be written as HalfWord only
 		*((u16*) address) = data[i];
@@ -337,6 +339,7 @@ void FLASH_Write_CurrentVersion(u32 address, char *data)
 		SET_BIT(FPEC->FLASH_SR, EOP_FLAG);	// cleared by writing 1
 
 	}
+	*((u16*) address) = '\0'; // a delimiter
 
 	// remove the choosing of erasing a page
 	// to avoid any conflict with upcoming operation

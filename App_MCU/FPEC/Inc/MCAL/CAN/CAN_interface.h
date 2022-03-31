@@ -94,7 +94,7 @@ typedef enum
 
 typedef struct
 {
-	char Buffer[50];
+	u8 Buffer[50];
 	u8 counter;
 } CAN_STRING_Buffer_t;
 

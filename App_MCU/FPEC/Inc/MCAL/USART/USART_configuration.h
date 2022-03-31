@@ -21,10 +21,10 @@
 /**************************************************
  choose the stop bit width
  options:
- USART_STOP_BIT_WIDTH_1	
+ USART_STOP_BIT_WIDTH_1
  USART_STOP_BIT_WIDTH_0_5
  USART_STOP_BIT_WIDTH_1_5
- USART_STOP_BIT_WIDTH_2	
+ USART_STOP_BIT_WIDTH_2
  *************************************************/
 #define USART_STOP_BIT_WIDTH	USART_STOP_BIT_WIDTH_1
 

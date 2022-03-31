@@ -24,19 +24,7 @@ u8 Start_Parsing_Flag; // wait for '\n' -> parse -> wait again
 u8 First_Record_Flag; // to clean the target bank before writing the flash
 extern u8 finish_flag; // indicate that flashing is ended ant make the code starts running immediately
 
-// receive buffer for record
-u8 Recv_Buffer[50]; // where data of records are  stored
-u8 Recv_Temp_Buffer[8];
-RX_Struct_t Recv_Header;
-u8 Recv_Counter; // counter of the data record
-
-// receive buffer for inquiry
-u8 Inquire_Buffer[50]; // buffer for inquiring data
-u8 Inquire_Temp_Buffer[8];
-RX_Struct_t Inquire_Header;
-u8 Inquire_Counter; // counter for inquiring buffer
-
-/* change those acccording to the code */
+/* change those according to the code */
 u8 FirstBankStartPage = 14;
 u8 FirstBankSize = 25;
 u8 SecondBankStartPage = 39;
@@ -44,7 +32,7 @@ u8 SecondBankSize = 25;
 
 /* store the storage */
 char Current_version[10];
-char New_version[10] = "3.2\n";
+char New_version[10];
 
 // this function do not need any further modification
 void func(void)
@@ -82,12 +70,10 @@ void CAN_RX1_IRQHandler(void) // for record
 void USART1_IRQHandler(void)
 {
 	u8 data = MUSART_u8ReceiveChar();
-	//Recv_Buffer[Recv_Counter++] = data;
 	Rx_Buffer.Buffer[Rx_Buffer.counter++] = data;
 	if (data == '\n')
 	{
 		Start_Parsing_Flag = 1;
-		Recv_Counter = 0;
 		Rx_Buffer.counter = 0;
 	}
 }
@@ -138,16 +124,13 @@ int main(void)
 
 	CAN_voidInit();
 
-	// filters to be configured one for inquiry buffer and another for data buffer  ->>>>>>>>>>>>>>> to be continued
-
 	/************************************************* NVIC configuration ***************************************/
-	MNVIC_voidEnableInterrupt(NVIC_USART1); // not needed when activating the CAN
+	MNVIC_voidEnableInterrupt(NVIC_USART1); // no need when activating the CAN
 	MNVIC_voidEnableInterrupt(NVIC_CAN_RX1);
 
 	/************************************************* FLASH configuration ***************************************/
-
+	u8 dumb = FLASH_u8ReadDataOptionByte(FLASH_OPT_BYTE_DATA_1);
 	FLASH_Read_CurrentVersion(); // save the current version in the Current_version Array
-
 	/* the following commented block used only for testing
 	 * leave it for any further modification
 	 */
@@ -161,24 +144,22 @@ int main(void)
 
 	// not needed when activating the can
 	MUSART_voidInit();
-	//MUSART_SetINTStatus(USART_READ_DATA_REG_NOT_EMPTY, USART_ENABLE);
+	MUSART_SetINTStatus(USART_READ_DATA_REG_NOT_EMPTY, USART_ENABLE);
 
 	/************************************************* SYSTICK configuration ***************************************/
 
-	for (int i = 0; i < 5; i++)
-	{
-		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_HIGH);
-		for (int i = 0; i < 300000; i++);
-
-		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_LOW);
-		for (int i = 0; i < 300000; i++);
-	}
-	for (int i = 0; i < 1000000; i++);
-
-	CAN_TransmitStringTest(0, "Get Version\n", ID_tx);
-
+//	for (int i = 0; i < 5; i++)
+//	{
+//		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_HIGH);
+//		for (int i = 0; i < 300000; i++);
+//
+//		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_LOW);
+//		for (int i = 0; i < 300000; i++);
+//	}
+//	for (int i = 0; i < 1000000; i++);
+//	CAN_TransmitStringTest(0, "Get Version\n", ID_tx);
 	MSYSTICK_voidInit();
-	MSYSTICK_voidSetIntervalSingle(12000000, func);
+	MSYSTICK_voidSetIntervalSingle(5000000, func);
 
 	u8 status;
 	status = 0;
@@ -221,18 +202,19 @@ int main(void)
 			}
 
 			// check record by using the checksum byte
-			status = Check_Record(Recv_Buffer);
+			status = Check_Record(Rx_Buffer.Buffer);
 
 			// if record is valid
 			// start parsing
 			if (status == 0)
 			{
-				Parse_Record(Recv_Buffer);
+				Parse_Record(Rx_Buffer.Buffer);
 			}
 
 			// send ok\n flashing the record
 			// need to be substituted with CAN send ->>>>>>>>>>>>>>>>>>>>>> to be continued
 			MUSART_voidTransmittString("OK\n");
+			//CAN_TransmitStringTest(0, "OK\n", ID_tx);
 
 			// if the last record is received no need to wait 6 seconds
 			if (finish_flag)
@@ -245,25 +227,45 @@ int main(void)
 			}
 
 		}
-		else if (0 == strcmp("Get Version\n", Rx_Buffer.Buffer))
+
+		else if (0 == strcmp("Get Bank\n", (char*) Rx_Buffer.Buffer))
 		{
-			CAN_TransmitStringTest(0, Current_version, ID_tx);
-		}
-		else if (0 == strcmp("Get Active Bank\n", Rx_Buffer.Buffer))
-		{
-			u8 dumb = FLASH_u8ReadDataOptionByte(FLASH_OPT_BYTE_DATA_1);
+
 			if (dumb == 0x11)
 			{
+				MUSART_voidTransmittString("0x11\n");
 				//CAN_TransmitStringTest(0, "0x11", ID_tx);
+			}
+
+			else if (dumb == 0x33)
+			{
+				asm("nop");
 			}
 			else if (dumb == 0x22)
 			{
+				MUSART_voidTransmittString("0x22\n");
 				//CAN_TransmitStringTest(0, "0x22", ID_tx);
 			}
 		}
-		else if (0 == strcmp("Restart\n", Rx_Buffer.Buffer))
+		else if (0 == strcmp("Get Version\n", (char*) Rx_Buffer.Buffer))
+		{
+			//CAN_TransmitStringTest(0, Current_version, ID_tx);
+			MUSART_voidTransmittString(Current_version);
+		}
+		else if (0 == strcmp("Restart\n", (char*) Rx_Buffer.Buffer))
 		{
 			SCB_AIRCR = 0x05FA0004; // request a system reset
+		}
+		else if (0 == strncmp("Version = ", (char*) Rx_Buffer.Buffer, 10))
+		{
+			char *dumb = Rx_Buffer.Buffer + 10;
+			u8 new_counter = 0;
+			while (*dumb != '\n')
+			{
+				New_version[new_counter++] = *dumb++;
+			}
+			New_version[new_counter++] = '\n';
+			New_version[new_counter++] = '\0';
 		}
 
 		// clear the flag to wait for the next one
