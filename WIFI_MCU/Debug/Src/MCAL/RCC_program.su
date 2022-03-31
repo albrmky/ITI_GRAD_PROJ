@@ -1,0 +1,7 @@
+RCC_program.c:30:4:MRCC_CheckReady	24	static
+RCC_program.c:70:4:MRCC_SetClkSource	24	static
+RCC_program.c:108:6:MRCC_SetClkSourceStatus	16	static
+RCC_program.c:166:6:MRCC_SetCLKBussesPrescaller	16	static
+RCC_program.c:185:6:MRCC_SetPLLConfiguration	16	static
+RCC_program.c:227:6:MRCC_SetPeripheralConfiguration	16	static
+RCC_program.c:263:6:MRCC_Init	16	static
