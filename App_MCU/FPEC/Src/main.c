@@ -11,13 +11,17 @@
 #include "../Inc/Parser.h"
 #include <String.h>
 
+//UART_MODE
+//CAN_MODE
+#define UART_MODE
+
 #define SCB_AIRCR *((volatile u32*)0xE000ED0C)
 
 typedef void (*Function_t)(void); // pointer to function who take void and return nothing
 Function_t addr_to_call = 0; // an instance of that data type
 
-CAN_STRING_Buffer_t Rx_Buffer;
-RX_Struct_t Rx_Header;
+CAN_STRING_Buffer_t Rx_Buffer; // receive any incoming data wither from CAN or UART
+RX_Struct_t Rx_Header; // related field with data received by the CAN frame
 
 // flags for parsing the record
 u8 Start_Parsing_Flag; // wait for '\n' -> parse -> wait again
@@ -53,6 +57,7 @@ void func(void)
 	addr_to_call();
 }
 
+#ifdef CAN_MODE
 void CAN_RX1_IRQHandler(void) // for record
 {
 	// read upcoming data and release the FIFO
@@ -67,6 +72,9 @@ void CAN_RX1_IRQHandler(void) // for record
 	}
 }
 
+#endif
+
+#ifdef UART_MODE
 void USART1_IRQHandler(void)
 {
 	u8 data = MUSART_u8ReceiveChar();
@@ -77,6 +85,7 @@ void USART1_IRQHandler(void)
 		Rx_Buffer.counter = 0;
 	}
 }
+#endif
 
 int main(void)
 {
@@ -88,24 +97,34 @@ int main(void)
 	MRCC_voidSetPeripheralClock(RCC_GPIOC, RCC_STATUS_ON);
 	MRCC_voidSetPeripheralClock(RCC_GPIOA, RCC_STATUS_ON);
 	MRCC_voidSetPeripheralClock(RCC_FLITF, RCC_STATUS_ON);
-	MRCC_voidSetPeripheralClock(RCC_USART1, RCC_STATUS_ON);
-	MRCC_voidSetPeripheralClock(RCC_CAN, RCC_STATUS_ON);
 
+#ifdef UART_MODE
+	MRCC_voidSetPeripheralClock(RCC_USART1, RCC_STATUS_ON); // for testing
+#endif
+
+#ifdef CAN_MOD
+	MRCC_voidSetPeripheralClock(RCC_CAN, RCC_STATUS_ON);
+#endif
 	/************************************************* GPIO configuration ***************************************/
 	MGPIO_voidSetPinDirection(GPIO_PORTC, 13, GPIO_MODE_OUTPUT_10_MHZ,
 			GPIO_OUTPUT_CNFG_GP_PP); // LED
 
+#ifdef UART_MODE
 	MGPIO_voidSetPinDirection(GPIO_PORTA, 9, GPIO_MODE_OUTPUT_10_MHZ,
 			GPIO_OUTPUT_CNFG_ALT_PP); // TX
 	MGPIO_voidSetPinDirection(GPIO_PORTA, 10, GPIO_MODE_INPUT,
 			GPIO_INPUT_CNFG_FLOATING); // RX
 	MRCC_voidSetPeripheralClock(RCC_CAN, RCC_STATUS_ON);
+#endif
 
+#ifdef CAN_MODE
 	MGPIO_voidSetPinDirection(GPIO_PORTA, 11, GPIO_MODE_INPUT,
 			GPIO_INPUT_CNFG_FLOATING); // CAN RX A11
 	MGPIO_voidSetPinDirection(GPIO_PORTA, 12, GPIO_MODE_OUTPUT_2_MHZ,
 			GPIO_OUTPUT_CNFG_ALT_PP); // CAN TX A12
+#endif
 
+#ifdef CAN_MODE
 	/************************************************* CAN configuration ***************************************/
 
 	// the value with which the comparison will happen according to the mask
@@ -123,13 +142,19 @@ int main(void)
 	CAN_voidInterruptStatus(CAN_EVENT_FIFO_1_PENDING, CAN_STATUS_ENABLE);
 
 	CAN_voidInit();
-
+#endif
 	/************************************************* NVIC configuration ***************************************/
+
+#ifdef UART_MODE
 	MNVIC_voidEnableInterrupt(NVIC_USART1); // no need when activating the CAN
+#endif
+
+#ifdef CAN_MODE
 	MNVIC_voidEnableInterrupt(NVIC_CAN_RX1);
+#endif
 
 	/************************************************* FLASH configuration ***************************************/
-	u8 dumb = FLASH_u8ReadDataOptionByte(FLASH_OPT_BYTE_DATA_1);
+	u8 dumb = FLASH_u8ReadDataOptionByte(FLASH_OPT_BYTE_DATA_1); // get the current active bank
 	FLASH_Read_CurrentVersion(); // save the current version in the Current_version Array
 	/* the following commented block used only for testing
 	 * leave it for any further modification
@@ -141,28 +166,18 @@ int main(void)
 	//FLASH_voidWriteDataOptionByte(FLASH_OPT_BYTE_DATA_1, 0x11);
 	//u8 dumb = FLASH_u8ReadDataOptionByte(FLASH_OPT_BYTE_DATA_1);
 	/************************************************* USART configuration ***************************************/
-
+#ifdef UART_MODE
 	// not needed when activating the can
 	MUSART_voidInit();
 	MUSART_SetINTStatus(USART_READ_DATA_REG_NOT_EMPTY, USART_ENABLE);
-
+#endif
 	/************************************************* SYSTICK configuration ***************************************/
 
-//	for (int i = 0; i < 5; i++)
-//	{
-//		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_HIGH);
-//		for (int i = 0; i < 300000; i++);
-//
-//		MGPIO_voidSetPinValue(GPIO_PORTC, 13, GPIO_LOW);
-//		for (int i = 0; i < 300000; i++);
-//	}
-//	for (int i = 0; i < 1000000; i++);
-//	CAN_TransmitStringTest(0, "Get Version\n", ID_tx);
 	MSYSTICK_voidInit();
 	MSYSTICK_voidSetIntervalSingle(5000000, func);
 
-	u8 status;
-	status = 0;
+	u8 status = 0; // for verify the received record
+
 	while (1)
 	{
 
@@ -182,7 +197,7 @@ int main(void)
 				u8 active_bank = FLASH_u8ReadDataOptionByte(
 						FLASH_OPT_BYTE_DATA_1);
 
-				if (active_bank == 0x11)// if bank 1  is the active bank erase bank 2
+				if (active_bank == 0x11)// if bank1 is the active bank ,erase bank2
 				{
 					for (u8 i = SecondBankStartPage;
 							i < SecondBankStartPage + SecondBankSize; i++)
@@ -190,7 +205,7 @@ int main(void)
 						FLASH_voidPageErase(i);
 					}
 				}
-				else if (active_bank == 0x22) // if bank 2  is the active bank erase bank 1
+				else if (active_bank == 0x22) // if bank2 is the active bank ,erase bank1
 				{
 					for (u8 i = FirstBankStartPage;
 							i < FirstBankStartPage + FirstBankSize; i++)
@@ -211,10 +226,14 @@ int main(void)
 				Parse_Record(Rx_Buffer.Buffer);
 			}
 
-			// send ok\n flashing the record
-			// need to be substituted with CAN send ->>>>>>>>>>>>>>>>>>>>>> to be continued
+			// send ok\n
+#ifdef UART_MODE
 			MUSART_voidTransmittString("OK\n");
-			//CAN_TransmitStringTest(0, "OK\n", ID_tx);
+#endif
+
+#ifdef CAN_MODE
+			CAN_TransmitStringTest(0, "OK\n", ID_tx);
+#endif
 
 			// if the last record is received no need to wait 6 seconds
 			if (finish_flag)
@@ -233,24 +252,39 @@ int main(void)
 
 			if (dumb == 0x11)
 			{
+#ifdef UART_MODE
 				MUSART_voidTransmittString("0x11\n");
-				//CAN_TransmitStringTest(0, "0x11", ID_tx);
+#endif
+
+#ifdef CAN_MODE
+				CAN_TransmitStringTest(0, "0x11\n", ID_tx);
+#endif
 			}
 
-			else if (dumb == 0x33)
+			else if (dumb == 0x33) // don't ask why
 			{
 				asm("nop");
 			}
 			else if (dumb == 0x22)
 			{
+#ifdef UART_MODE
 				MUSART_voidTransmittString("0x22\n");
-				//CAN_TransmitStringTest(0, "0x22", ID_tx);
+#endif
+
+#ifdef CAN_MODE
+				CAN_TransmitStringTest(0, "0x22\n", ID_tx);
+#endif
 			}
 		}
 		else if (0 == strcmp("Get Version\n", (char*) Rx_Buffer.Buffer))
 		{
-			//CAN_TransmitStringTest(0, Current_version, ID_tx);
-			MUSART_voidTransmittString(Current_version);
+#ifdef CAN_MODE
+			CAN_TransmitStringTest(0, Current_version, ID_tx); // '\n' are implicitly included
+#endif
+#ifdef UART_MODE
+			MUSART_voidTransmittString(Current_version); // '\n' are implicitly included
+#endif
+
 		}
 		else if (0 == strcmp("Restart\n", (char*) Rx_Buffer.Buffer))
 		{
@@ -258,7 +292,7 @@ int main(void)
 		}
 		else if (0 == strncmp("Version = ", (char*) Rx_Buffer.Buffer, 10))
 		{
-			char *dumb = Rx_Buffer.Buffer + 10;
+			u8 *dumb = Rx_Buffer.Buffer + 10;
 			u8 new_counter = 0;
 			while (*dumb != '\n')
 			{
@@ -268,7 +302,7 @@ int main(void)
 			New_version[new_counter++] = '\0';
 		}
 
-		// clear the flag to wait for the next one
+		// clear the flag to wait for the next record or inquiry
 		Start_Parsing_Flag = 0;
 
 	}			//while(1)
