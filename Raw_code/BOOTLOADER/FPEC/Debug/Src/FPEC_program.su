@@ -1,7 +1,0 @@
-FPEC_program.c:15:6:FLASH_voidControlAccess	16	static
-FPEC_program.c:31:6:FLASH_voidOptByteAccess	16	static
-FPEC_program.c:48:6:FLASH_voidPageErase	16	static
-FPEC_program.c:83:6:FLASH_voidPageProgram	32	static
-FPEC_program.c:119:6:FLASH_voidINTSTATUS	16	static
-FPEC_program.c:131:6:FLASH_voidWriteDataOptionByte	24	static
-FPEC_program.c:187:4:FLASH_u8ReadDataOptionByte	24	static

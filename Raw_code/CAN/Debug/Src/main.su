@@ -1,3 +1,0 @@
-main.c:16:6:USB_LP_CAN_RX0_IRQHandler	8	static,ignoring_inline_asm
-main.c:22:6:CAN_RX1_IRQHandler	8	static,ignoring_inline_asm
-main.c:28:5:main	40	static

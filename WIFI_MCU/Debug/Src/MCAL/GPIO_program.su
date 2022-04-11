@@ -1,5 +1,0 @@
-GPIO_program.c:21:6:MGPIO_voidSetDirection	16	static
-GPIO_program.c:76:6:MGPIO_voidSetPinValue	16	static
-GPIO_program.c:116:19:MGPIO_u8GetPinValue	24	static
-GPIO_program.c:148:19:MGPIO_u8LockPortConfigs	32	static
-GPIO_program.c:207:6:MGPIO_voidSetPinAlternativeFunction	16	static

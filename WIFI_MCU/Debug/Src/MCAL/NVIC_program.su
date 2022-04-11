@@ -1,6 +1,0 @@
-NVIC_program.c:17:6:MNVIC_voidEnablePeripheral	16	static
-NVIC_program.c:22:6:MNVIC_voidDisablePeripheral	16	static
-NVIC_program.c:27:6:MNVIC_voidSetPending	16	static
-NVIC_program.c:32:6:MNVIC_voidClearPending	16	static
-NVIC_program.c:38:4:MNVIC_u8CheckActive	24	static
-NVIC_program.c:47:6:MNVIC_voidSetIntPriority	24	static

@@ -1,3 +1,0 @@
-SCB_program.c:17:6:MSCB_voidSetSystemGroupPriority	4	static
-SCB_program.c:33:4:MSCB_voidGetSystemGroupPriority	4	static
-SCB_program.c:41:6:MSCB_voidSetCoreIntPriority	24	static

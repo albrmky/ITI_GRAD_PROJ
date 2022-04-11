@@ -1,9 +1,0 @@
-USART_PROG.c:18:6:MUSART_VidInit	16	static
-USART_PROG.c:126:6:MUSART1_VidSendCharSync	16	static
-USART_PROG.c:136:6:MUSART1_VidSendStringSynch	24	static
-USART_PROG.c:149:4:MUSART1_u8RecCharSynch	16	static
-USART_PROG.c:176:6:MUSART1_PtrReadStringSynch	16	static
-USART_PROG.c:192:6:MUSART1_VidClearFlags	4	static
-USART_PROG.c:201:4:MUSART1_u8ReadDataRegister	4	static
-USART_PROG.c:212:6:MUSART1_VidSetCallBack	16	static
-USART_PROG.c:218:6:USART1_IRQHandler	8	static
